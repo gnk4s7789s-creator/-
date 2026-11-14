@@ -15,7 +15,7 @@ input[type=checkbox]{width:20px;height:20px;padding:0}input[type=time]{width:104
 <p class="s" id="src">予測モデル：端末の実績を使用</p>
 <div id="form"></div>
 <div class="c"><h2>提案プラン</h2><div class="sum" id="sum"></div><div id="out"></div><button class="bt" data-a="copy">プランをコピー</button></div>
-<p class="s">待ち時間は「パーク待ち時間予測」と同じ予測モデル（曜日・天気・時期・実績からの学習）で計算し、固定枠（ショー・食事・買い物・DPA）を除いた空き時間に、待ち時間の合計が最小になる順番を探します。ショーやパレードの時刻は公式アプリで確認してください。待ち時間データ：<a href="https://queue-times.com/" target="_blank" rel="noopener">Powered by Queue-Times.com</a>／天気：Open-Meteo</p>
+<p class="s">待ち時間は「パーク待ち時間予測」と同じ予測モデル（曜日・天気・時期・実績からの学習）で計算し、優先度（★）の合計が最大になるように、見るショー・乗るアトラクション・食事や買い物の時刻を組み合わせて探します（待ち時間は短いほど良い）。DPAは固定枠です。ショーやパレードの時刻は公式アプリで確認してください。待ち時間データ：<a href="https://queue-times.com/" target="_blank" rel="noopener">Powered by Queue-Times.com</a>／天気：Open-Meteo</p>
 </div>
 <script>
 (()=>{'use strict';
@@ -101,13 +101,18 @@ function learnedRatio(key,minute,date,ctx){
  return {value:Math.max(.62,Math.min(1.55,value)),confidence,support};
 }
 
-const def=()=>({park:'land',open:'09:00',close:'21:00',season:'normal',dayType:'auto',weather:'sun',date:ymd(new Date()),sel:{'land|0':1,'land|1':1,'land|2':1,'land|4':1,'sea|0':1,'sea|1':1,'sea|3':1,'sea|4':1},must:{},dpa:{},
-ev:[{t:'パレード',n:'昼のパレード',s:'14:00',d:40,on:true},{t:'ショー',n:'夜のショー',s:'19:30',d:40,on:false}],
-meals:[{n:'昼食',s:'11:30',d:60,on:true},{n:'夕食',s:'17:30',d:60,on:true},{n:'おやつ休憩',s:'15:30',d:20,on:false}],shop:{s:'19:45',d:45,on:true}});
+const def=()=>({park:'land',open:'09:00',close:'21:00',season:'normal',dayType:'auto',weather:'sun',date:ymd(new Date()),pri:{'land|0':2,'land|1':2,'land|2':2,'land|4':2,'sea|0':2,'sea|1':2,'sea|3':2,'sea|4':2},dpa:{},
+ev:[{t:'パレード',n:'昼のパレード',s:'14:00',d:40,pri:2},{t:'ショー',n:'夜のショー',s:'19:30',d:40,pri:0}],
+meals:[{n:'昼食',a:'11:00',b:'13:30',d:60,on:true},{n:'夕食',a:'17:00',b:'19:00',d:60,on:true},{n:'おやつ休憩',a:'14:30',b:'16:30',d:20,on:false}],shop:{a:'18:00',b:'20:00',d:45,on:true}});
 let S=def();
-try{Object.assign(S,JSON.parse(localStorage.getItem('parkPlanV2')||'{}'))}catch(e){}
+try{Object.assign(S,JSON.parse(localStorage.getItem('parkPlanV3')||'{}'))}catch(e){}
 {const ic=inferCtx(new Date());S.date=ymd(new Date());S.season=ic.season;S.dayType=ic.dayType;S.weather='sun'}
-const save=()=>{try{localStorage.setItem('parkPlanV2',JSON.stringify(S))}catch(e){}};
+const save=()=>{try{localStorage.setItem('parkPlanV3',JSON.stringify(S))}catch(e){}};
+const JA=[['Frozen Journey','アナとエルサのフローズンジャーニー'],['Soaring','ソアリン：ファンタスティック・フライト'],['Center of the Earth','センター・オブ・ジ・アース'],['Toy Story Mania','トイ・ストーリー・マニア！'],['Rapunzel','ラプンツェルのランタンフェスティバル'],['Raging Spirits','レイジングスピリッツ'],['Never Land','ピーターパンのネバーランドアドベンチャー'],['Tower of Terror','タワー・オブ・テラー'],['Busy Buggies','フェアリー・ティンカーベルのビジーバギー'],['Jasmine','ジャスミンのフライングカーペット'],['Flounder','フランダーのフライングフィッシュコースター'],['Turtle Talk','タートル・トーク'],['SeaRider','ニモ＆フレンズ・シーライダー'],['Electric Railway','ディズニーシー・エレクトリックレールウェイ'],['Transit Steamer','ディズニーシー・トランジットスチーマーライン'],['Gondola','ヴェネツィアン・ゴンドラ'],['Magic Lamp','マジックランプシアター'],['Blowfish','ブローフィッシュ・バルーンレース'],['Fortress','フォートレス・エクスプロレーション'],['Indiana Jones','インディ・ジョーンズ・アドベンチャー：クリスタルスカルの魔宮'],['Mermaid Lagoon Theat','マーメイドラグーンシアター'],['Sindbad','シンドバッド・ストーリーブック・ヴォヤッジ'],['Aquatopia','アクアトピア'],['Scuttle','スカットルのスクーター'],['Whirlpool','ワールプール'],['Jumpin','ジャンピン・ジェリーフィッシュ'],['Caravan','キャラバンカルーセル'],['Big City','ビッグシティ・ヴィークル'],['Leonardo','レオナルドチャレンジ'],['20,000','海底2万マイル'],['Ariel','アリエルのプレイグラウンド'],
+['Magic of Storytelling|Beauty and the Beast','美女と野獣“魔法のものがたり”'],['Baymax','ベイマックスのハッピーライド'],['Hunny|Pooh','プーさんのハニーハント'],['Monsters','モンスターズ・インク“ライド＆ゴーシーク！”'],['Splash','スプラッシュ・マウンテン'],['Big Thunder','ビッグサンダー・マウンテン'],['Space Mountain','スペース・マウンテン'],['Haunted','ホーンテッドマンション'],['Astro Blasters|Buzz','バズ・ライトイヤーのアストロブラスター'],['Pirates','カリブの海賊'],['Jungle Cruise','ジャングルクルーズ：ワイルドライフ・エクスペディション'],['Western River','ウエスタンリバー鉄道'],['Country Bear','カントリーベア・シアター'],['Star Tours','スター・ツアーズ：ザ・アドベンチャーズ・コンティニュー'],['Peter Pan','ピーターパン空の旅'],['Snow White','白雪姫と七人のこびと'],['Pinocchio','ピノキオの冒険旅行'],['Cinderella','シンデレラのフェアリーテイル・ホール'],['Alice','アリスのティーパーティー'],['Dumbo','ダンボ・ザ・フライングエレファント'],['Carrousel|Carousel','キャッスルカルーセル'],['Small World','イッツ・ア・スモールワールド'],['PhilharMagic','ミッキーのフィルハーマジック'],['Goofy','グーフィーのペイント＆プレイハウス'],['Minnie','ミニーの家'],['Mickey.s House|Meet Mickey','ミッキーの家とミート・ミッキー'],['Chip','チップとデールのツリーハウス'],['Donald','ドナルドのボート'],['Gadget','ガジェットのゴーコースター'],['Roger Rabbit','ロジャーラビットのカートゥーンスピン'],['Swiss','スイスファミリー・ツリーハウス'],['Tom Sawyer','トムソーヤ島いかだ'],['Mark Twain','蒸気船マークトウェイン号'],['Columbia','帆船コロンビア号'],['Canoe','カヌー探険'],['Grand Circuit','グランドサーキット・レースウェイ'],['Orbitron','オービトロン'],['Stitch','スティッチ・エンカウンター'],
+['Jamboree','ジャンボリミッキー！レッツ・ダンス！'],['Club Mouse Beat','クラブマウスビート'],['Electrical Parade','エレクトリカルパレード・ドリームライツ'],['Harmony in Color','ディズニー・ハーモニー・イン・カラー'],['Reach for the Stars','リーチ・フォー・ザ・スターズ'],['Magical Music World','ミッキーのマジカルミュージックワールド'],['Rainbow Luau','ミッキーのレインボー・ルアウ'],['Fantasmic','ファンタズミック！'],['Sea of Dreams','ビリーヴ！〜シー・オブ・ドリームス〜'],['Big Band Beat','ビッグバンドビート']];
+const AREA={'American Waterfront':'アメリカンウォーターフロント','Port Discovery':'ポートディスカバリー','Lost River Delta':'ロストリバーデルタ','Mediterranean Harbor':'メディテレーニアンハーバー','Mysterious Island':'ミステリアスアイランド','Arabian Coast':'アラビアンコースト','Mermaid Lagoon':'マーメイドラグーン'};
+const jn=n=>{const e=JA.find(x=>new RegExp(x[0],'i').test(n));if(!e)return n;const g=/\(([^)]+)\)\s*$/.exec(n);return e[1]+(g?'（'+(AREA[g[1]]||g[1])+'）':'')};
 async function loadShared(after){
  try{
   const J=async u=>{const r=await fetch(u,{cache:'no-cache'});if(!r.ok)throw 0;return r.json()};
@@ -117,7 +122,7 @@ async function loadShared(after){
   if(rl)for(const pk of ['land','sea']){const list=rl[pk]||[];if(!list.length)continue;const old=rides[pk].slice(0,10);rides[pk].length=0;
    list.forEach(([id,name,bi])=>{const a=by[(pk==='sea'?1:0)+'|'+id]||[],o=bi!=null?old[bi]:null;let idx=bi!=null?bi:5+id%5,base=o?o[1]:40,f=o?o[2]:1;
     if(a.length>=8){const avg=a.reduce((x,y)=>x+y,0)/a.length;if(bi==null)idx=(avg>=40?0:5)+id%5;let cm=0,n=0;for(let m=540;m<=1260;m+=30){cm+=baseCurve(m,idx,540,1260);n++}base=Math.max(5,avg/(cm/n)/1.1);f=1}
-    rides[pk].push([o?o[0]:name,base,f,id,idx])})}
+    rides[pk].push([o?o[0]:jn(name),base,f,id,idx])})}
   for(const pk of ['land','sea'])rides[pk].forEach(r=>E[(pk==='sea'?1:0)+'|'+r[3]]=r);
   const local=new Set(loadLocal().map(x=>x.key+'|'+x.date+'|'+x.minute)),cache={},out=[];
   for(const [p,id,date,slot,wait,wc] of hj.rows){const e=E[p+'|'+id];if(!e)continue;const pk=p?'sea':'land',key=pk+'|'+id;if(local.has(key+'|'+date+'|'+slot))continue;
@@ -130,54 +135,67 @@ fetch('data/shows.json',{cache:'no-cache'}).then(r=>r.json()).then(j=>{SHOWS=j;f
 async function weatherOf(ds){try{const r=await fetch('https://api.open-meteo.com/v1/forecast?latitude=35.633&longitude=139.880&daily=precipitation_sum&timezone=Asia%2FTokyo&past_days=3&forecast_days=16'),j=await r.json(),i=j.daily.time.indexOf(ds);if(i<0)return null;const p=j.daily.precipitation_sum[i];return p>=15?'heavy':p>=3?'rain':'sun'}catch(e){return null}}
 const autoW=()=>weatherOf(S.date).then(w=>{if(w){S.weather=w;TBL=null;form();plan()}});
 const todayShows=()=>((SHOWS&&SHOWS[S.park])||[]).filter(x=>x.d===S.date);
-function impShows(){S.ev=todayShows().slice(0,30).map(x=>({t:/parade|パレード/i.test(x.n)?'パレード':'ショー',n:x.n,s:x.s,d:x.m||40,on:false}))}
+function impShows(){S.ev=todayShows().slice(0,30).map(x=>({t:/parade|パレード/i.test(x.n)?'パレード':'ショー',n:jn(x.n),s:x.s,d:x.m||40,pri:0}))}
 function sBtn(){const a=todayShows();return a.length?`<div class="r"><button class="bt" data-a="imp">この日の公式予定を取り込む（${a.length}件）</button></div><div class="s">取り込み後、見るものにチェックを入れてください</div>`:`<div class="s">この日のショー予定の自動取得データはありません（手入力してください）</div>`}
-function table(){const P=S.park,o=tm(S.open),c=tm(S.close),k=[P,S.date,S.weather,S.season,S.dayType,S.open,S.close,SHARED.length,rides[P].length,Object.keys(S.sel).filter(x=>S.sel[x]).join()].join('~');if(TBL&&TK===k)return TBL;
+const PW=[0,1000,3000,8000],stars=p=>'★'.repeat(p);
+function table(){const P=S.park,o=tm(S.open),c=tm(S.close),k=[P,S.date,S.weather,S.season,S.dayType,S.open,S.close,SHARED.length,rides[P].length,JSON.stringify(S.pri)].join('~');if(TBL&&TK===k)return TBL;
  const date=new Date(S.date+'T12:00:00'),ctx={season:S.season,weather:S.weather,dayType:S.dayType,openMinute:o,closeMinute:c,dateValue:S.date},
  f=({quiet:.78,normal:1,busy:1.24,verybusy:1.48}[S.season])*({auto:1,holiday:1.12,vacation:1.22,event:1.16}[S.dayType])*({sun:1,rain:.94,heavy:.86}[S.weather])*dayFactor(date);
  HC=loadLocal().concat(SHARED);const T={};
- rides[P].forEach((r,i)=>{if(!S.sel[K(P,i)])return;T[i]=[];for(let m=o;m<=c;m+=15)T[i].push(round5(r[1]*baseCurve(m,mi(P,i),o,c)*f*r[2]*learnedRatio(K(P,i),m,date,ctx).value))});
+ rides[P].forEach((r,i)=>{if(!(S.pri[K(P,i)]>0))return;T[i]=[];for(let m=o;m<=c;m+=15)T[i].push(round5(r[1]*baseCurve(m,mi(P,i),o,c)*f*r[2]*learnedRatio(K(P,i),m,date,ctx).value))});
  HC=null;TBL=T;TK=k;return T}
 const wt=(T,i,t,o)=>{const a=T[i];return a[Math.max(0,Math.min(a.length-1,Math.round((t-o)/15)))]};
-function build(T,F,rem0,o,c,score){const P=S.park,rem=rem0.slice(),out=[];let cur=o,tw=0,warn=0,n=0,mp=0;
+function build(T,F,rem0,o,c,score){const P=S.park,rem=rem0.slice(),out=[];let cur=o,tw=0,warn=0,n=0,sw=0;
  const fill=end=>{for(;;){let b=null;for(const i of rem){const t=cur+(out.length?WK:0),w=wt(T,i,t,o);if(t+w+RD>end)continue;const sc=score(i,w,t);if(!b||sc<b.sc)b={i,t,w,sc}}
-  if(!b)break;out.push({s:b.t,e:b.t+b.w+RD,ty:'a',ti:'🎢 '+rides[P][b.i][0],sub:`待ち約${b.w}分（予測）＋乗車${RD}分`});tw+=b.w;n++;if(S.must[K(P,b.i)])mp++;cur=b.t+b.w+RD;rem.splice(rem.indexOf(b.i),1)}};
+  if(!b)break;const p=+S.pri[K(P,b.i)];out.push({s:b.t,e:b.t+b.w+RD,ty:'a',ti:'🎢 '+rides[P][b.i][0]+' '+stars(p),sub:`待ち約${b.w}分（予測）＋乗車${RD}分`});tw+=b.w;n++;sw+=PW[p];cur=b.t+b.w+RD;rem.splice(rem.indexOf(b.i),1)}};
  for(const b of [...F,{s:c,end:1}]){fill(b.s);if(cur<b.s-5)out.push({s:cur,e:b.s,ty:'f',ti:'フリー・移動・休憩',sub:''});if(b.end)break;if(b.s<cur-5)warn++;out.push(b);cur=Math.max(cur,b.e)}
- return{out,rem,tw,warn,n,mp}}
+ return{out,rem,tw,warn,n,sw}}
 function plan(){const o=tm(S.open),c=tm(S.close),P=S.park;
  if(!(c>o)||isNaN(Date.parse(S.date))){$('out').innerHTML='<div class="s warn">来園日と開園・閉園時刻を確認してください</div>';$('sum').textContent='';return}
- const F=[],add=(s,d,ty,ti,sub)=>{s=tm(s);if(Number.isFinite(s))F.push({s,e:s+d,ty,ti,sub})};
- S.ev.forEach(x=>x.on&&add(x.s,x.d,x.t==='パレード'?'p':'s',(x.t==='パレード'?'🎉 ':'✨ ')+x.n,'待機込み '+x.d+'分'));
- S.meals.forEach(x=>x.on&&add(x.s,x.d,'m','🍽 '+x.n,x.d+'分'));
- if(S.shop.on)add(S.shop.s,S.shop.d,'sh','🛍 買い物',S.shop.d+'分');
- const rem=[];rides[P].forEach((r,i)=>{const k=K(P,i);if(!S.sel[k])return;if(S.dpa[k])add(S.dpa[k],RD+10,'d','🎫 '+r[0]+'（DPA）','指定時刻に入場');else rem.push(i)});
- F.sort((a,b)=>a.s-b.s);
+ const base=[],shows=[],rem=[];
+ rides[P].forEach((r,i)=>{const k=K(P,i),p=+S.pri[k]||0;if(!p)return;const d=tm(S.dpa[k]);if(Number.isFinite(d))base.push({s:d,e:d+RD+10,ty:'d',ti:'🎫 '+r[0]+'（DPA） '+stars(p),sub:'指定時刻に入場',w:PW[p]});else rem.push(i)});
+ S.ev.forEach(x=>{const s=tm(x.s),p=+x.pri||0;if(p&&Number.isFinite(s))shows.push({s,e:s+x.d,ty:x.t==='パレード'?'p':'s',ti:(x.t==='パレード'?'🎉 ':'✨ ')+x.n+' '+stars(p),sub:'待機込み '+x.d+'分',w:PW[p],p})});
+ shows.sort((a,b)=>b.p-a.p);
+ const fl=[...S.meals.map(x=>Object.assign({ty:'m',ti:'🍽 '+x.n,w:6000},x)),Object.assign({ty:'sh',ti:'🛍 買い物',w:2000},S.shop)].filter(x=>x.on&&x.d>0).map(x=>Object.assign({},x,{a:tm(x.a),b:tm(x.b)})).filter(x=>x.a<=x.b);
  const T=table(),av={};rem.forEach(i=>av[i]=T[i].reduce((a,b)=>a+b,0)/T[i].length);
- const mu=i=>S.must[K(P,i)]?.55:1,val=r=>r.mp*5000+r.n*1000-r.tw;
- let best=build(T,F,rem,o,c,(i,w)=>w/av[i]*mu(i));sd=12345;const rnd=()=>(sd=(sd*1664525+1013904223)>>>0)/4294967296;
- for(let k=0;k<300;k++){const r=build(T,F,rem,o,c,(i,w)=>w/av[i]*mu(i)*(1+.8*rnd()));if(val(r)>val(best))best=r}
- const base=build(T,F,rem,o,c,i=>i);PLAN=best.out;
- $('sum').innerHTML=`アトラクション<b>${best.n}</b>個／待ち時間の合計<b>${best.tw}分</b>（予測）<br>選んだ順にそのまま並ぶ場合：${base.n}個／${base.tw}分`+(best.n>=base.n&&best.tw<base.tw?` → <b>約${base.tw-best.tw}分短縮</b>`:'');
- $('out').innerHTML=best.out.map(x=>`<div class="it ${x.ty}"><div class="tm">${fm(x.s)}<br>〜${fm(x.e)}</div><div><b>${esc(x.ti)}</b>${x.sub?`<div class="sub">${x.sub}</div>`:''}</div></div>`).join('')+(best.rem.length?`<div class="s warn">入りきらなかった：${best.rem.map(i=>rides[P][i][0]).join('、')}</div>`:'')+(best.warn?`<div class="s warn">⚠ 予定が重なっています（${best.warn}件）</div>`:'')}
-function form(){const P=S.park,ck=v=>v?'checked':'',op=(l,cur)=>l.map(([v,t])=>`<option value="${v}" ${cur===v?'selected':''}>${t}</option>`).join('');
+ const ov=(x,y)=>x.s<y.e+WK&&y.s<x.e+WK,sq=p=>Math.sqrt(PW[p]/1000);
+ sd=12345;const rnd=()=>(sd=(sd*1664525+1013904223)>>>0)/4294967296;
+ let best=null,F0=null;
+ for(let k=0;k<400;k++){
+  const F=base.slice(),cs=[],miss=[];
+  for(const s of shows){if(F.some(y=>ov(s,y)))continue;if(k&&rnd()>[0,.35,.7,1][s.p])continue;F.push(s);cs.push(s)}
+  for(const m of (k?fl.slice().sort(()=>rnd()-.5):fl)){const cand=[];for(let t=m.a;t<=m.b;t+=15){const x={s:t,e:t+m.d};if(t>=o&&t+m.d<=c&&!F.some(y=>ov(x,y)))cand.push(t)}
+   if(!cand.length){miss.push(m);continue}const t=k?cand[Math.floor(rnd()*cand.length)]:cand[Math.floor(cand.length/2)];
+   F.push({s:t,e:t+m.d,ty:m.ty,ti:m.ti,sub:`${m.d}分（${fm(m.a)}〜${fm(m.b)}の間で調整）`,w:m.w})}
+  F.sort((a,b)=>a.s-b.s);
+  const r=build(T,F,rem,o,c,(i,w)=>w/av[i]/sq(+S.pri[K(P,i)])*(k?1+.6*rnd():1)),v=r.sw+F.reduce((a,y)=>a+(y.w||0),0)-r.tw;
+  if(!k)F0=F;if(!best||v>best.v)best=Object.assign(r,{v,cs,miss,F})}
+ const nv=build(T,F0,rem,o,c,i=>i),sh=best.cs.length;PLAN=best.out;
+ $('sum').innerHTML=`アトラクション<b>${best.n}</b>個＋DPA${base.length}個／ショー・パレード<b>${sh}</b>本／待ち時間の合計<b>${best.tw}分</b>（予測）<br>選んだ順にそのまま並べた場合：${nv.n}個／${nv.tw}分`;
+ const skip=shows.filter(x=>!best.cs.includes(x)).map(x=>x.ti);
+ $('out').innerHTML=best.out.map(x=>`<div class="it ${x.ty}"><div class="tm">${fm(x.s)}<br>〜${fm(x.e)}</div><div><b>${esc(x.ti)}</b>${x.sub?`<div class="sub">${x.sub}</div>`:''}</div></div>`).join('')
+ +(best.rem.length?`<div class="s warn">入りきらなかったアトラクション：${best.rem.map(i=>rides[P][i][0]+' '+stars(+S.pri[K(P,i)])).join('、')}</div>`:'')
+ +(skip.length?`<div class="s warn">見られなかったショー・パレード：${skip.map(esc).join('、')}</div>`:'')
+ +(best.miss.length?`<div class="s warn">時間帯に入れられなかった：${best.miss.map(m=>esc(m.ti)).join('、')}（時間帯を広げてください）</div>`:'')}
+function form(){const P=S.park,ck=v=>v?'checked':'',op=(l,cur)=>l.map(([v,t])=>`<option value="${v}" ${cur===v?'selected':''}>${t}</option>`).join(''),pr=cur=>[[0,'—'],[1,'★'],[2,'★★'],[3,'★★★']].map(([v,t])=>`<option value="${v}" ${(+cur||0)===v?'selected':''}>${t}</option>`).join('');
 $('form').innerHTML=`<div class="c"><div class="seg"><button data-a="park:land" class="${P==='land'?'on':''}">ランド</button><button data-a="park:sea" class="${P==='sea'?'on':''}">シー</button></div>
 <div class="r"><label>来園日</label><input type="date" data-p="date" value="${S.date}"></div>
 <div class="r"><label>天気</label><select data-p="weather">${op([['sun','晴れ・くもり'],['rain','雨'],['heavy','強い雨']],S.weather)}</select></div>
 <div class="r"><label>時期</label><select data-p="season">${op([['quiet','閑散期'],['normal','通常'],['busy','繁忙期'],['verybusy','超繁忙期']],S.season)}</select></div>
 <div class="r"><label>祝日・イベント</label><select data-p="dayType">${op([['auto','通常日'],['holiday','祝日・3連休'],['vacation','学校休暇・大型連休'],['event','特別イベント日']],S.dayType)}</select></div>
 <div class="r"><label>開園</label><input type="time" data-p="open" value="${S.open}"><label>閉園</label><input type="time" data-p="close" value="${S.close}"></div></div>
-<div class="c"><h2>乗りたいアトラクション</h2><div class="s">左：行く／★：必ず入れたい／右：DPAを取った場合の入場時刻（空欄＝スタンバイ）</div>
-${rides[P].map((r,i)=>{const k=K(P,i);return `<div class="r"><input type="checkbox" id="c${i}" data-p="sel.${k}" ${ck(S.sel[k])}><label for="c${i}">${r[0]}</label><label class="st"><input type="checkbox" data-p="must.${k}" ${ck(S.must[k])}>★</label><input type="time" data-p="dpa.${k}" value="${S.dpa[k]||''}"></div>`}).join('')}</div>
-<div class="c"><h2>ショー・パレード</h2>${S.ev.map((x,i)=>`<div class="r"><input type="checkbox" data-p="ev.${i}.on" ${ck(x.on)}><select data-p="ev.${i}.t"><option ${x.t==='パレード'?'selected':''}>パレード</option><option ${x.t==='ショー'?'selected':''}>ショー</option></select><input type="text" data-p="ev.${i}.n" value="${esc(x.n)}"><input type="time" data-p="ev.${i}.s" value="${x.s}"><input type="number" data-p="ev.${i}.d" value="${x.d}" min="5" max="180">分<button class="bt" data-a="del:${i}">✕</button></div>`).join('')}<button class="bt" data-a="add">＋追加</button>${sBtn()}</div>
-<div class="c"><h2>食事・買い物</h2>${S.meals.map((x,i)=>`<div class="r"><input type="checkbox" data-p="meals.${i}.on" ${ck(x.on)}><label>${esc(x.n)}</label><input type="time" data-p="meals.${i}.s" value="${x.s}"><input type="number" data-p="meals.${i}.d" value="${x.d}" min="5" max="180">分</div>`).join('')}
-<div class="r"><input type="checkbox" data-p="shop.on" ${ck(S.shop.on)}><label>買い物</label><input type="time" data-p="shop.s" value="${S.shop.s}"><input type="number" data-p="shop.d" value="${S.shop.d}" min="5" max="180">分</div></div>`}
+<div class="c"><h2>乗りたいアトラクション</h2><div class="s">優先度：★★★＝絶対／★★＝行きたい／★＝できれば／—＝行かない。右はDPAを取った場合の入場時刻（空欄＝スタンバイ）</div>
+${rides[P].map((r,i)=>{const k=K(P,i);return `<div class="r"><label>${esc(r[0])}</label><select data-p="pri.${k}" data-n="1">${pr(S.pri[k])}</select><input type="time" data-p="dpa.${k}" value="${S.dpa[k]||''}"></div>`}).join('')}</div>
+<div class="c"><h2>ショー・パレード</h2><div class="s">優先度を付けたものの中から、見られる組み合わせを自動で選びます</div>${S.ev.map((x,i)=>`<div class="r"><select data-p="ev.${i}.pri" data-n="1">${pr(x.pri)}</select><select data-p="ev.${i}.t"><option ${x.t==='パレード'?'selected':''}>パレード</option><option ${x.t==='ショー'?'selected':''}>ショー</option></select><input type="text" data-p="ev.${i}.n" value="${esc(x.n)}"><input type="time" data-p="ev.${i}.s" value="${x.s}"><input type="number" data-p="ev.${i}.d" value="${x.d}" min="5" max="180">分<button class="bt" data-a="del:${i}">✕</button></div>`).join('')}<button class="bt" data-a="add">＋追加</button>${sBtn()}</div>
+<div class="c"><h2>食事・買い物</h2><div class="s">開始してよい時間帯を入力すると、その範囲で最適な時刻を自動で決めます</div>${S.meals.map((x,i)=>`<div class="r"><input type="checkbox" data-p="meals.${i}.on" ${ck(x.on)}><label>${esc(x.n)}</label><input type="time" data-p="meals.${i}.a" value="${x.a}">〜<input type="time" data-p="meals.${i}.b" value="${x.b}"><input type="number" data-p="meals.${i}.d" value="${x.d}" min="5" max="180">分</div>`).join('')}
+<div class="r"><input type="checkbox" data-p="shop.on" ${ck(S.shop.on)}><label>買い物</label><input type="time" data-p="shop.a" value="${S.shop.a}">〜<input type="time" data-p="shop.b" value="${S.shop.b}"><input type="number" data-p="shop.d" value="${S.shop.d}" min="5" max="180">分</div></div>`}
 function setPath(p,v){const a=p.split('.');let o=S;for(let i=0;i<a.length-1;i++)o=o[a[i]];o[a[a.length-1]]=v}
-document.addEventListener('input',e=>{const t=e.target,p=t.dataset&&t.dataset.p;if(!p)return;setPath(p,t.type==='checkbox'?t.checked:t.type==='number'?Number(t.value):t.value);save();
+document.addEventListener('input',e=>{const t=e.target,p=t.dataset&&t.dataset.p;if(!p)return;setPath(p,t.type==='checkbox'?t.checked:(t.type==='number'||t.dataset.n)?Number(t.value):t.value);save();
  if(p==='date'&&!isNaN(Date.parse(t.value))){const ic=inferCtx(new Date(t.value+'T12:00:00'));S.season=ic.season;S.dayType=ic.dayType;form();autoW()}plan()});
 document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el)return;const [k,v]=el.dataset.a.split(':');
  if(k==='copy'){const txt=PLAN.map(x=>`${fm(x.s)}-${fm(x.e)} ${x.ti}`).join('\n');(navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>alert('コピーしました')).catch(()=>alert(txt));return}
- if(k==='imp')impShows();if(k==='park')S.park=v;if(k==='del')S.ev.splice(+v,1);if(k==='add')S.ev.push({t:'ショー',n:'ショー名',s:'18:00',d:40,on:true});save();form();plan()});
+ if(k==='imp')impShows();if(k==='park')S.park=v;if(k==='del')S.ev.splice(+v,1);if(k==='add')S.ev.push({t:'ショー',n:'ショー名',s:'18:00',d:40,pri:2});save();form();plan()});
 $('src').textContent=`予測モデル：端末の実績${loadLocal().length}件を使用`;
-form();plan();loadShared(n=>{const pick={land:[0,1,2,4],sea:[0,1,3,4]};for(const pk of ['land','sea']){const L=rides[pk];if(!L.some(r=>r[3]>=100&&S.sel[pk+'|'+r[3]]))L.forEach(r=>{if(r[3]>=100&&pick[pk].includes(r[4]))S.sel[pk+'|'+r[3]]=1})}$('src').textContent=`予測モデル：共有実績${n}件＋端末の実績${loadLocal().length}件を使用（アトラクション${rides.land.length+rides.sea.length}件）`;TBL=null;form();plan()});autoW();
+form();plan();loadShared(n=>{const pick={land:[0,1,2,4],sea:[0,1,3,4]};for(const pk of ['land','sea']){const L=rides[pk];if(!L.some(r=>r[3]>=100&&S.pri[pk+'|'+r[3]]))L.forEach(r=>{if(r[3]>=100&&pick[pk].includes(r[4]))S.pri[pk+'|'+r[3]]=2})}$('src').textContent=`予測モデル：共有実績${n}件＋端末の実績${loadLocal().length}件を使用（アトラクション${rides.land.length+rides.sea.length}件）`;TBL=null;form();plan()});autoW();
 })();
 </script></body></html>
