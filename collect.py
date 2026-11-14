@@ -25,8 +25,6 @@ def shows():
     json.dump(out,open('data/shows.json','w',encoding='utf-8'),ensure_ascii=False,separators=(',',':'))
 try: shows()
 except Exception as ex: print('shows skipped:',ex)
-slot=int((now.hour*60+now.minute+15)//30*30)
-if not 540<=slot<=1260: raise SystemExit('time out of range')
 date=now.date().isoformat()
 slot=int((now.hour*60+now.minute+15)//30*30)
 inrange=540<=slot<=1260
