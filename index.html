@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14213d">
+<title>パーク待ち時間予測・学習強化版</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#64748b;--line:#dbe3ee;--primary:#2563eb;--primary2:#7c3aed;--good:#15803d;--warn:#b45309;--shadow:0 10px 30px rgba(30,41,59,.09)}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#eaf2ff 0,#f6f4ff 45%,#f4f7fb 100%);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;color:var(--text)}
+.wrap{max-width:820px;margin:auto;padding:18px 14px 56px}.hero{padding:20px 6px 12px}.hero h1{font-size:clamp(24px,7vw,36px);margin:0 0 7px}.hero p{margin:0;color:var(--muted);line-height:1.6}.card{background:var(--card);border:1px solid rgba(219,227,238,.8);border-radius:20px;padding:18px;margin:14px 0;box-shadow:var(--shadow)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:6px}.field.full{grid-column:1/-1}label{font-weight:700;font-size:13px}select,input{width:100%;font:inherit;color:var(--text);background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;outline:none}select:focus,input:focus{border-color:var(--primary);box-shadow:0 0 0 3px #2563eb22}.seg{display:grid;grid-template-columns:1fr 1fr;background:#edf2f7;border-radius:13px;padding:4px;gap:4px}.seg button{border:0;background:transparent;border-radius:10px;padding:10px;font-weight:800;color:var(--muted)}.seg button.active{background:#fff;color:var(--primary);box-shadow:0 2px 8px #1e293b18}
+.btn{width:100%;border:0;border-radius:14px;padding:14px 16px;color:#fff;background:linear-gradient(135deg,var(--primary),var(--primary2));font:800 16px inherit;cursor:pointer;box-shadow:0 8px 18px #2563eb33}.btn:active{transform:translateY(1px)}
+.result{display:none}.headline{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.badge{white-space:nowrap;background:#dcfce7;color:var(--good);padding:7px 11px;border-radius:999px;font-weight:800;font-size:13px}.best{font-size:28px;font-weight:900;margin:6px 0;color:var(--primary)}.sub{color:var(--muted);font-size:13px;line-height:1.55}.chart{display:flex;align-items:end;gap:4px;height:205px;margin:22px 0 8px;border-bottom:1px solid var(--line);padding:0 2px;overflow-x:auto;overflow-y:hidden}.barwrap{height:100%;flex:1;display:flex;flex-direction:column;justify-content:end;align-items:center;min-width:28px}.val{font-size:10px;font-weight:800;margin-bottom:4px}.bar{width:100%;max-width:42px;border-radius:7px 7px 2px 2px;background:linear-gradient(180deg,#8b5cf6,#2563eb);min-height:4px}.tick{font-size:10px;color:var(--muted);margin-top:6px}.nowbox{display:flex;gap:8px;align-items:end;margin-top:14px}.nowbox .field{flex:1}.secondary{border:1px solid var(--line);background:#fff;color:var(--primary);font-weight:800;border-radius:12px;padding:12px;cursor:pointer}.note{font-size:12px;color:var(--muted);line-height:1.65;margin-top:14px}.list{margin-top:12px;display:grid;gap:8px}.row{display:flex;justify-content:space-between;background:#f8fafc;border-radius:10px;padding:10px 12px;font-size:14px}.row strong{color:var(--primary)}.historyBox{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}.historyHead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px}.historyActions{display:flex;gap:6px;flex-wrap:wrap}.small{padding:7px 10px;font-size:12px}.learnInfo{margin-top:7px;padding:10px 12px;background:#f8fafc;border-radius:10px}.hidden{display:none!important}
+@media(max-width:540px){.grid{grid-template-columns:1fr}.field.full{grid-column:auto}.chart{gap:3px}.val{font-size:9px}.tick{font-size:9px}.card{padding:15px}.nowbox{align-items:stretch;flex-direction:column}.headline{align-items:flex-start}.best{font-size:25px}}
+</style>
+</head>
+<body><main class="wrap">
+<section class="hero"><h1>パーク待ち時間予測</h1><p>実測値を蓄積するほど、曜日・天気・混雑条件と時間帯の傾向を学習して補正する個人用予測ツールです。</p><p class="sub" id="autoStatus" style="margin-top:8px;cursor:pointer">自動学習：準備中…</p></section>
+<section class="card">
+<div class="grid">
+<div class="field full"><label>パーク</label><div class="seg"><button type="button" id="landBtn" class="active">ランド</button><button type="button" id="seaBtn">シー</button></div></div>
+<div class="field"><label for="date">来園日</label><input id="date" type="date"></div>
+<div class="field"><label for="weather">天気</label><select id="weather"><option value="sun">晴れ・くもり</option><option value="rain">雨</option><option value="heavy">強い雨</option></select></div>
+<div class="field full"><label for="ride">アトラクション</label><select id="ride"></select></div>
+<div class="field"><label for="season">時期の混雑補正</label><select id="season"><option value="normal">通常</option><option value="busy">繁忙期</option><option value="verybusy">超繁忙期</option><option value="quiet">閑散期</option></select></div>
+<div class="field"><label for="dayType">祝日・イベント要因</label><select id="dayType"><option value="auto">通常日（曜日から推定）</option><option value="holiday">祝日・3連休</option><option value="vacation">学校休暇・大型連休</option><option value="event">特別イベント日</option></select></div>
+<div class="field"><label for="open">開園時刻</label><input id="open" type="time" value="09:00" step="900"></div>
+<div class="field"><label for="close">閉園時刻</label><input id="close" type="time" value="21:00" step="900"></div>
+<div class="field full"><button class="btn" id="predict" type="button">予測する</button></div>
+</div></section>
+<section class="card result" id="result" aria-live="polite">
+<div class="headline"><div><div class="sub" id="rideName"></div><div class="best" id="bestTime"></div><div class="sub" id="bestText"></div></div><div class="badge" id="dayLevel"></div></div>
+<div class="chart" id="chart"></div>
+<div class="list" id="list"></div>
+<div class="historyBox">
+ <div class="historyHead"><strong>実績データ</strong><div class="historyActions"><button type="button" class="secondary small" id="exportHistory">バックアップ</button><button type="button" class="secondary small" id="importHistory">読み込み</button><button type="button" class="secondary small" id="clearHistory">履歴を削除</button></div></div>
+ <input type="file" id="importFile" accept="application/json,.json" class="hidden">
+ <div class="sub" id="historyStatus"></div><div class="sub learnInfo" id="learnInfo">予測に使った実績の量をここに表示します。</div>
+</div>
+<div class="nowbox"><div class="field"><label for="actualTime">実測時刻</label><input id="actualTime" type="time" step="900"></div><div class="field"><label for="actual">実測待ち時間</label><input id="actual" type="number" inputmode="numeric" min="0" max="300" placeholder="例：85"></div><button type="button" class="secondary" id="correct">実測値を登録</button></div>
+<p class="note">実測値はこの端末内に最大4000件保存されます。予測では、同じアトラクションの記録から曜日・天気・時期・祝日要因・開園時刻が近いデータを優先し、時間帯が近い記録ほど強く反映します。極端な実測値の影響を抑え、データ件数に応じて補正を強めます。バックアップ／読み込みで端末間のデータ移行もできます。運休・システム調整・入場制限・当日のイベント運営・公式のリアルタイム待ち時間は取得しません。予測は目安であり、実測データを蓄積するほど個人環境に適応します。待ち時間の自動取得：<a href="https://queue-times.com/" target="_blank" rel="noopener">Powered by Queue-Times.com</a>／天気：Open-Meteo。ページを開いている間、5分ごとに公開データを取得して自動で学習します（手入力は不要）。</p>
+</section>
+</main>
+<script>
+(()=>{
+'use strict';
+const rides={
+ land:[['美女と野獣「魔法のものがたり」',110,1.18],['ベイマックスのハッピーライド',90,1.22],['プーさんのハニーハント',65,1.08],['モンスターズ・インク',60,1.04],['スプラッシュ・マウンテン',70,1.06],['ビッグサンダー・マウンテン',55,1],['スペース・マウンテン相当',65,1.05],['ホーンテッドマンション',40,.92],['バズ・ライトイヤー相当',50,.98],['カリブの海賊',20,.82]],
+ sea:[['アナとエルサのフローズンジャーニー',125,1.2],['ラプンツェルのランタンフェスティバル',100,1.16],['ピーターパンのネバーランドアドベンチャー',95,1.14],['ソアリン：ファンタスティック・フライト',120,1.18],['トイ・ストーリー・マニア！',105,1.15],['タワー・オブ・テラー',65,1.02],['センター・オブ・ジ・アース',65,1.03],['インディ・ジョーンズ',50,.98],['レイジングスピリッツ',45,.96],['ニモ＆フレンズ・シーライダー',35,.9]]
+};
+let park='land';
+const $=id=>document.getElementById(id), ride=$('ride');
+// 既存のV2履歴を読み込み、新方式の記録と共存させる。
+const storeKey='parkWaitActualsV2';
+function loadLocal(){try{const v=JSON.parse(localStorage.getItem(storeKey)||'[]');return Array.isArray(v)?v.filter(x=>x&&typeof x==='object'):[]}catch(e){return[]}}
+let SHARED=[];
+function loadHistory(){const l=loadLocal();return SHARED.length?l.concat(SHARED):l}
+function saveHistory(x){try{localStorage.setItem(storeKey,JSON.stringify(x.filter(r=>r.src!=='shared').slice(-4000)))}catch(e){alert('端末の保存容量が不足しているため、実績を保存できませんでした。バックアップ後に古い履歴を整理してください。')}}
+function rideKey(){return park+'|'+ride.value}
+function fill(){ride.innerHTML=rides[park].map((r,i)=>`<option value="${i}">${r[0]}</option>`).join('');updateHistory()}
+function setPark(p){park=p;$('landBtn').classList.toggle('active',p==='land');$('seaBtn').classList.toggle('active',p==='sea');fill();$('result').style.display='none'}
+$('landBtn').addEventListener('click',()=>setPark('land'));
+$('seaBtn').addEventListener('click',()=>setPark('sea'));
+ride.addEventListener('change',()=>{updateHistory();$('result').style.display='none'});
+const now=new Date();
+$('actualTime').value=`${String(now.getHours()).padStart(2,'0')}:${String(Math.round(now.getMinutes()/15)*15%60).padStart(2,'0')}`;
+$('date').value=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+function round5(n){return Math.max(5,Math.round(n/5)*5)}
+function parseTime(value){if(!/^\d{2}:\d{2}$/.test(value||''))return NaN;const [h,m]=value.split(':').map(Number);return h*60+m}
+function labelTime(m){return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`}
+function dayFactor(date){const d=date.getDay();return d===6?1.22:d===0?1.17:d===5?1.07:1}
+function selectedDayFactor(){return ({auto:1,holiday:1.12,vacation:1.22,event:1.16})[$('dayType').value]??1}
+function times(openMinute,closeMinute){const a=[];for(let m=openMinute;m<=closeMinute;m+=15)a.push({m,label:labelTime(m)});if(a[a.length-1]?.m!==closeMinute)a.push({m:closeMinute,label:labelTime(closeMinute)});return a}
+function baseCurve(min,idx,openMinute,closeMinute){
+ // 09:00開園時は従来モデルの曲線を維持し、開園時刻に応じて全体をシフトする。
+ const h=9+(min-openMinute)/60, closeHour=9+(closeMinute-openMinute)/60;
+ const morning=Math.exp(-Math.pow((h-(9.55+(idx%3)*.18))/1.05,2));
+ const noon=Math.exp(-Math.pow((h-(12.4+(idx%2)*.35))/2.0,2));
+ const evening=Math.exp(-Math.pow((h-(16.3+(idx%4)*.22))/1.65,2));
+ const closeDrop=1-Math.max(0,h-(closeHour-3))*.13;
+ const popular=idx<=4;
+ const trend=(popular?.56+.58*morning+.22*noon+.16*evening:.48+.27*morning+.38*noon+.25*evening)*Math.max(.55,closeDrop);
+ const phase=idx*1.37;
+ const wave1=Math.sin((h-9)*Math.PI/1.05+phase)*.055;
+ const wave2=Math.sin((h-9)*Math.PI/.46+phase*.63)*.027;
+ return Math.max(.42,trend*(1+wave1+wave2));
+}
+function circularDayDistance(a,b){const d=Math.abs(a-b);return Math.min(d,7-d)}
+function seasonDistance(a,b){const rank={quiet:0,normal:1,busy:2,verybusy:3};return Math.abs((rank[a]??1)-(rank[b]??1))}
+function weatherWeight(a,b){if(!a||!b)return .78;if(a===b)return 1;return (a==='heavy'||b==='heavy')?.42:.68}
+function dayTypeWeight(a,b){a=a||'auto';b=b||'auto';if(a===b)return 1;if(a==='auto'||b==='auto')return .72;return .48}
+function contextWeight(x,ctx,date){
+ const oldDate=new Date((x.date||'')+'T12:00:00');if(Number.isNaN(oldDate.getTime()))return 0;
+ const dayDist=circularDayDistance(oldDate.getDay(),date.getDay());
+ const weekday=Math.pow(.78,dayDist);
+ const weather=weatherWeight(x.weather,ctx.weather);
+ const season=Math.pow(.72,seasonDistance(x.season,ctx.season));
+ const dayType=dayTypeWeight(x.dayType,ctx.dayType);
+ const oldOpen=Number.isFinite(x.openMinute)?x.openMinute:540;
+ const oldClose=Number.isFinite(x.closeMinute)?x.closeMinute:1260;
+ const schedule=Math.exp(-Math.abs(oldOpen-ctx.openMinute)/150)*Math.exp(-Math.abs(oldClose-ctx.closeMinute)/240);
+ const ageDays=Math.max(0,(Date.now()-(Number(x.at)||Date.now()))/86400000);
+ const recency=Math.exp(-Math.LN2*ageDays/240);
+ // 旧方式で保存した履歴も残すが、新方式の記録より少し弱く扱う。
+ const version=(x.modelVersion===3)?1:.72;
+ return weekday*weather*season*dayType*schedule*recency*version*(x.date===ctx.dateValue?3:1);
+}
+function weightedRobustLog(items){
+ if(!items.length)return {mean:0,weight:0};
+ const sorted=[...items].sort((a,b)=>a.log-b.log);let total=sorted.reduce((s,x)=>s+x.w,0),acc=0,median=sorted[0].log;
+ for(const x of sorted){acc+=x.w;if(acc>=total/2){median=x.log;break}}
+ // 中央値から大きく外れた単発値を抑えて、加重平均を計算する。
+ const cap=.38;let sw=0,s=0;
+ for(const x of items){const v=Math.max(median-cap,Math.min(median+cap,x.log));sw+=x.w;s+=x.w*v}
+ return {mean:sw?s/sw:0,weight:sw};
+}
+function learnedRatio(key,minute,date,ctx){
+ const hist=loadHistory().filter(x=>x.key===key&&Number.isFinite(Number(x.ratio))&&Number(x.ratio)>0);
+ if(!hist.length)return {value:1,confidence:0,support:0};
+ const globalItems=[],localItems=[];let support=0;
+ for(const x of hist){
+  const cw=contextWeight(x,ctx,date);if(cw<.015)continue;
+  const ratio=Math.max(.5,Math.min(1.9,Number(x.ratio)));
+  const item={log:Math.log(ratio),w:cw};globalItems.push(item);
+  const timeDist=Math.abs(Number(x.minute)-minute);
+  const localKernel=Math.exp(-.5*Math.pow(timeDist/75,2));
+  const lw=cw*localKernel;
+  if(lw>.015)localItems.push({log:item.log,w:lw});
+  if(cw>.12)support++;
+ }
+ const global=weightedRobustLog(globalItems),local=weightedRobustLog(localItems);
+ if(global.weight<.04)return {value:1,confidence:0,support};
+ const localShare=local.weight/(local.weight+.45);
+ const estimate=global.mean*(1-localShare)+local.mean*localShare;
+ const evidence=.42*global.weight+.58*local.weight;
+ const confidence=1-Math.exp(-evidence/1.65);
+ const value=Math.exp(estimate*confidence);
+ return {value:Math.max(.62,Math.min(1.55,value)),confidence,support};
+}
+function updateHistory(){
+ const h=loadHistory(),mine=h.filter(x=>x.key===rideKey());
+ $('historyStatus').textContent=mine.length?`${mine.length}件の実績を保存中（全アトラクション合計 ${h.length}件／最大4000件）`:'このアトラクションの実績はまだありません。';
+}
+function calc(actual=null){
+ const r=rides[park][+ride.value],dateValue=$('date').value,date=new Date(dateValue+'T12:00:00');
+ if(!r||!dateValue||Number.isNaN(date.getTime())){alert('来園日とアトラクションを選んでください。');return}
+ const openMinute=parseTime($('open').value),closeMinute=parseTime($('close').value);
+ if(!Number.isFinite(openMinute)||!Number.isFinite(closeMinute)||closeMinute<=openMinute||closeMinute-openMinute<120){alert('閉園時刻は開園時刻より2時間以上後に設定してください。');return}
+ const season=$('season').value,weather=$('weather').value,dayType=$('dayType').value;
+ const context={season,weather,dayType,openMinute,closeMinute,dateValue};
+ const seasonFactor={quiet:.78,normal:1,busy:1.24,verybusy:1.48}[season];
+ // 雨による全体補正は強くしすぎず、実績が集まれば条件一致データで補正する。
+ const weatherFactor={sun:1,rain:.94,heavy:.86}[weather];
+ const ts=times(openMinute,closeMinute),key=rideKey();
+ const raw=ts.map(t=>r[1]*baseCurve(t.m,+ride.value,openMinute,closeMinute)*dayFactor(date)*seasonFactor*selectedDayFactor()*weatherFactor*r[2]);
+ if(actual!==null){
+  const selectedMinute=parseTime($('actualTime').value);
+  if(!Number.isFinite(selectedMinute)||selectedMinute<openMinute||selectedMinute>closeMinute){alert('実測時刻は開園時刻から閉園時刻の範囲で入力してください。');return}
+  const minute=openMinute+Math.round((selectedMinute-openMinute)/15)*15;
+  const idx=raw.reduce((best,v,i)=>Math.abs(ts[i].m-minute)<Math.abs(ts[best].m-minute)?i:best,0);
+  const ratio=Math.max(.45,Math.min(1.9,actual/Math.max(5,raw[idx])));
+  const hist=loadHistory();
+  const record={key,date:dateValue,minute:ts[idx].m,actual,ratio,weather,season,dayType,openMinute,closeMinute,modelVersion:3,at:Date.now()};
+  const existing=hist.findIndex(x=>x.key===key&&x.date===dateValue&&Number(x.minute)===ts[idx].m);
+  if(existing>=0)hist[existing]=record;else hist.push(record);
+  saveHistory(hist);updateHistory();
+ }
+ const learned=raw.map((v,i)=>learnedRatio(key,ts[i].m,date,context));
+ const vals=raw.map((v,i)=>round5(v*learned[i].value));
+ const min=Math.min(...vals),bi=vals.indexOf(min),max=Math.max(...vals);
+ $('rideName').textContent=r[0];
+ $('bestTime').textContent=`おすすめ ${ts[bi].label}〜${ts[Math.min(bi+4,ts.length-1)].label}`;
+ $('bestText').textContent=`予測 ${min}分（予測時間帯の最大 約${max}分）`;
+ const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+ $('dayLevel').textContent=avg>100?'かなり混雑':avg>65?'混雑':avg>35?'普通':'比較的空き';
+ const maxConfidence=Math.max(...learned.map(x=>x.confidence));
+ const support=Math.max(...learned.map(x=>x.support));
+ const quality=maxConfidence>=.72?'学習データ充実':maxConfidence>=.4?'学習中':'参考値（実績不足）';
+ $('learnInfo').textContent=`補正状況：${quality} ／ 条件が近い実績 ${support}件 ／ 学習補正の強さ ${(maxConfidence*100).toFixed(0)}%（実績が増えると更新されます）`;
+ const display=vals.map((v,i)=>({v,t:ts[i]}));
+ $('chart').innerHTML=display.map(x=>`<div class="barwrap"><div class="val">${x.v}</div><div class="bar" style="height:${Math.max(5,x.v/max*145)}px"></div><div class="tick">${x.t.label}</div></div>`).join('');
+ const ranked=vals.map((v,i)=>({v,t:ts[i]})).sort((a,b)=>a.v-b.v).slice(0,3);
+ $('list').innerHTML=ranked.map((x,i)=>`<div class="row"><span>${i+1}位　${x.t.label}〜</span><strong>${x.v}分</strong></div>`).join('');
+ $('result').style.display='block';
+ $('result').scrollIntoView({behavior:'smooth',block:'start'});
+}
+$('predict').addEventListener('click',()=>calc());
+$('correct').addEventListener('click',()=>{const n=Number($('actual').value);if(!Number.isFinite(n)||n<0||n>300||!$('actualTime').value){alert('実測時刻と0〜300分の待ち時間を入力してください。');return}calc(n)});
+$('clearHistory').addEventListener('click',()=>{if(confirm('保存済みの実績データをすべて削除しますか？')){localStorage.removeItem(storeKey);updateHistory();$('learnInfo').textContent='履歴を削除しました。これからの実測値で再学習します。'}});
+$('exportHistory').addEventListener('click',()=>{
+ const payload={app:'park-wait-predictor',version:3,exportedAt:new Date().toISOString(),records:loadLocal()};
+ const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=`park-wait-history-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+});
+$('importHistory').addEventListener('click',()=>$('importFile').click());
+$('importFile').addEventListener('change',async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ try{
+  const data=JSON.parse(await file.text()),incoming=Array.isArray(data)?data:data.records;
+  if(!Array.isArray(incoming))throw new Error('records');
+  const valid=incoming.filter(x=>x&&typeof x.key==='string'&&typeof x.date==='string'&&Number.isFinite(Number(x.minute))&&Number.isFinite(Number(x.ratio))&&Number(x.ratio)>0&&Number.isFinite(Number(x.actual)));
+  const merged=loadHistory();
+  for(const x of valid){const i=merged.findIndex(y=>y.key===x.key&&y.date===x.date&&Number(y.minute)===Number(x.minute));if(i>=0)merged[i]=x;else merged.push(x)}
+  saveHistory(merged);updateHistory();$('learnInfo').textContent=`${valid.length}件の実績を読み込みました。`;
+  alert(`${valid.length}件の実績データを取り込みました。`);
+ }catch(err){alert('読み込めませんでした。アプリのバックアップJSONを選択してください。')}
+ e.target.value='';
+});
+
+// ===== 自動学習：ライブ待ち時間(Queue-Times)と天気(Open-Meteo)を取得して実績を自動蓄積 =====
+const PARKS={land:274,sea:275};
+const ALIAS={land:['beauty|美女','baymax|ベイマックス','pooh|プーさん','monsters|モンスターズ','splash|スプラッシュ','big thunder|ビッグサンダー','space mountain|スペース','haunted|ホーンテッド','buzz|バズ','pirates|カリブ'],sea:['frozen|アナ','rapunzel|ラプンツェル','peter pan|ピーターパン','soarin|ソアリン','toy story|トイ・ストーリー','tower of terror|タワー','center of the earth|センター','indiana|インディ','raging|レイジング','nemo|ニモ']};
+const ymd=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+function inferCtx(d){const m=d.getMonth()+1,n=d.getDate(),v=(m===4&&n>=29)||(m===5&&n<=5)||(m===8&&n>=8&&n<=16)||(m===12&&n>=26)||(m===1&&n<=4);return{season:v?'busy':'normal',dayType:v?'vacation':'auto'}}
+async function getJSON(u){for(const f of [u,'https://api.allorigins.win/raw?url='+encodeURIComponent(u)]){try{const r=await fetch(f,{cache:'no-store'});if(r.ok)return await r.json()}catch(e){}}throw new Error('fetch')}
+async function weatherOf(ds){try{const j=await getJSON('https://api.open-meteo.com/v1/forecast?latitude=35.633&longitude=139.880&daily=precipitation_sum&timezone=Asia%2FTokyo&past_days=3&forecast_days=16');const i=j.daily.time.indexOf(ds);if(i<0)return null;const p=j.daily.precipitation_sum[i];return p>=15?'heavy':p>=3?'rain':'sun'}catch(e){return null}}
+let collecting=false;
+async function collect(){
+ if(collecting)return;collecting=true;const st=$('autoStatus');
+ try{
+  const now=new Date(),ds=ymd(now),w=(await weatherOf(ds))||'sun',ic=inferCtx(now),hist=loadHistory();
+  const o=540,c=1260,slot=Math.round((now.getHours()*60+now.getMinutes())/30)*30;let n=0,ok=false;
+  for(const p of ['land','sea']){
+   const j=await getJSON(`https://queue-times.com/parks/${PARKS[p]}/queue_times.json`);ok=true;
+   const live=[...(j.lands||[]).flatMap(l=>l.rides||[]),...(j.rides||[])].filter(x=>x.is_open&&Number.isFinite(Number(x.wait_time)));
+   if(live.length<3||slot<o||slot>c)continue; // 閉園・停止時は記録しない
+   ALIAS[p].forEach((a,idx)=>{
+    const re=new RegExp(a,'i'),x=live.find(y=>re.test(y.name));if(!x)return;
+    const r=rides[p][idx],sf={quiet:.78,normal:1,busy:1.24}[ic.season],df=ic.dayType==='vacation'?1.22:1;
+    const raw=r[1]*baseCurve(slot,idx,o,c)*dayFactor(now)*sf*df*({sun:1,rain:.94,heavy:.86}[w])*r[2];
+    const wait=Number(x.wait_time),ratio=Math.max(.45,Math.min(1.9,wait/Math.max(5,raw))),key=p+'|'+idx;
+    const rec={key,date:ds,minute:slot,actual:wait,ratio,weather:w,season:ic.season,dayType:ic.dayType,openMinute:o,closeMinute:c,modelVersion:3,src:'auto',at:Date.now()};
+    const i=hist.findIndex(y=>y.key===key&&y.date===ds&&Number(y.minute)===slot);
+    if(i>=0)hist[i]=rec;else hist.push(rec);n++;
+   });
+  }
+  if(n)saveHistory(hist);updateHistory();
+  st.textContent=ok?`自動学習：共有データ${SHARED.length}件＋今回${n}件を更新（${now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}）${n?'':'／開園時間外または対象なし'}`:'';
+ }catch(e){st.textContent='自動学習：データを取得できませんでした（通信またはCORS制限）。タップで再試行'}
+ collecting=false;
+}
+$('autoStatus').addEventListener('click',collect);
+const autoWeather=()=>weatherOf($('date').value).then(w=>{if(w)$('weather').value=w});
+$('date').addEventListener('change',autoWeather);
+autoWeather();collect();setInterval(collect,300000);
+
+// ===== 共有データ：サーバー側(GitHub Actions)が毎日蓄積したデータを読み込む =====
+const DATA_URL='data/history.json'; // 別の場所に置く場合はURLを変更
+async function loadShared(){
+ try{
+  const r=await fetch(DATA_URL,{cache:'no-cache'});if(!r.ok)return;const j=await r.json();
+  const local=new Set(loadLocal().map(x=>x.key+'|'+x.date+'|'+x.minute)),W=['sun','rain','heavy'],cache={},out=[];
+  for(const [p,idx,date,slot,wait,wc] of j.rows){
+   const pk=p?'sea':'land',key=pk+'|'+idx,rd=rides[pk][idx];if(!rd||local.has(key+'|'+date+'|'+slot))continue;
+   const d=new Date(date+'T12:00:00'),ic=cache[date]||(cache[date]=inferCtx(d));
+   const sf={quiet:.78,normal:1,busy:1.24}[ic.season],df=ic.dayType==='vacation'?1.22:1;
+   const raw=rd[1]*baseCurve(slot,idx,540,1260)*dayFactor(d)*sf*df*[1,.94,.86][wc]*rd[2];
+   out.push({key,date,minute:slot,actual:wait,ratio:Math.max(.45,Math.min(1.9,wait/Math.max(5,raw))),weather:W[wc],season:ic.season,dayType:ic.dayType,openMinute:540,closeMinute:1260,modelVersion:3,src:'shared',at:d.getTime()});
+  }
+  SHARED=out;updateHistory();
+ }catch(e){}
+}
+loadShared();
+fill();updateHistory();
+})();
+</script></body></html>
