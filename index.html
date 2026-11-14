@@ -16,7 +16,7 @@
 </style>
 </head>
 <body><main class="wrap">
-<section class="hero"><h1>パーク待ち時間予測</h1><p>実測値を蓄積するほど、曜日・天気・混雑条件と時間帯の傾向を学習して補正する個人用予測ツールです。</p><p class="sub" id="autoStatus" style="margin-top:8px;cursor:pointer">自動学習：準備中…</p></section>
+<section class="hero"><h1>パーク待ち時間予測</h1><p>実測値を蓄積するほど、曜日・天気・混雑条件と時間帯の傾向を学習して補正する個人用予測ツールです。</p><p class="sub" id="autoStatus" style="margin-top:8px;cursor:pointer">共有データ：読み込み中…</p></section>
 <section class="card">
 <div class="grid">
 <div class="field full"><label>パーク</label><div class="seg"><button type="button" id="landBtn" class="active">ランド</button><button type="button" id="seaBtn">シー</button></div></div>
@@ -49,6 +49,7 @@ const rides={
  land:[['美女と野獣「魔法のものがたり」',110,1.18],['ベイマックスのハッピーライド',90,1.22],['プーさんのハニーハント',65,1.08],['モンスターズ・インク',60,1.04],['スプラッシュ・マウンテン',70,1.06],['ビッグサンダー・マウンテン',55,1],['スペース・マウンテン相当',65,1.05],['ホーンテッドマンション',40,.92],['バズ・ライトイヤー相当',50,.98],['カリブの海賊',20,.82]],
  sea:[['アナとエルサのフローズンジャーニー',125,1.2],['ラプンツェルのランタンフェスティバル',100,1.16],['ピーターパンのネバーランドアドベンチャー',95,1.14],['ソアリン：ファンタスティック・フライト',120,1.18],['トイ・ストーリー・マニア！',105,1.15],['タワー・オブ・テラー',65,1.02],['センター・オブ・ジ・アース',65,1.03],['インディ・ジョーンズ',50,.98],['レイジングスピリッツ',45,.96],['ニモ＆フレンズ・シーライダー',35,.9]]
 };
+Object.values(rides).forEach(a=>a.forEach((r,i)=>{r[3]=i;r[4]=i}));const mi=(p,i)=>rides[p][i][4];
 let park='land';
 const $=id=>document.getElementById(id), ride=$('ride');
 // 既存のV2履歴を読み込み、新方式の記録と共存させる。
@@ -57,7 +58,7 @@ function loadLocal(){try{const v=JSON.parse(localStorage.getItem(storeKey)||'[]'
 let SHARED=[];
 function loadHistory(){const l=loadLocal();return SHARED.length?l.concat(SHARED):l}
 function saveHistory(x){try{localStorage.setItem(storeKey,JSON.stringify(x.filter(r=>r.src!=='shared').slice(-4000)))}catch(e){alert('端末の保存容量が不足しているため、実績を保存できませんでした。バックアップ後に古い履歴を整理してください。')}}
-function rideKey(){return park+'|'+ride.value}
+function rideKey(){return park+'|'+(rides[park][+ride.value]||[])[3]}
 function fill(){ride.innerHTML=rides[park].map((r,i)=>`<option value="${i}">${r[0]}</option>`).join('');updateHistory()}
 function setPark(p){park=p;$('landBtn').classList.toggle('active',p==='land');$('seaBtn').classList.toggle('active',p==='sea');fill();$('result').style.display='none'}
 $('landBtn').addEventListener('click',()=>setPark('land'));
@@ -153,7 +154,7 @@ function calc(actual=null){
  // 雨による全体補正は強くしすぎず、実績が集まれば条件一致データで補正する。
  const weatherFactor={sun:1,rain:.94,heavy:.86}[weather];
  const ts=times(openMinute,closeMinute),key=rideKey();
- const raw=ts.map(t=>r[1]*baseCurve(t.m,+ride.value,openMinute,closeMinute)*dayFactor(date)*seasonFactor*selectedDayFactor()*weatherFactor*r[2]);
+ const raw=ts.map(t=>r[1]*baseCurve(t.m,mi(park,+ride.value),openMinute,closeMinute)*dayFactor(date)*seasonFactor*selectedDayFactor()*weatherFactor*r[2]);
  if(actual!==null){
   const selectedMinute=parseTime($('actualTime').value);
   if(!Number.isFinite(selectedMinute)||selectedMinute<openMinute||selectedMinute>closeMinute){alert('実測時刻は開園時刻から閉園時刻の範囲で入力してください。');return}
@@ -209,59 +210,33 @@ $('importFile').addEventListener('change',async e=>{
 });
 
 // ===== 自動学習：ライブ待ち時間(Queue-Times)と天気(Open-Meteo)を取得して実績を自動蓄積 =====
-const PARKS={land:274,sea:275};
-const ALIAS={land:['beauty|美女','baymax|ベイマックス','pooh|プーさん','monsters|モンスターズ','splash|スプラッシュ','big thunder|ビッグサンダー','space mountain|スペース','haunted|ホーンテッド','buzz|バズ','pirates|カリブ'],sea:['frozen|アナ','rapunzel|ラプンツェル','peter pan|ピーターパン','soarin|ソアリン','toy story|トイ・ストーリー','tower of terror|タワー','center of the earth|センター','indiana|インディ','raging|レイジング','nemo|ニモ']};
 const ymd=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
 function inferCtx(d){const m=d.getMonth()+1,n=d.getDate(),v=(m===4&&n>=29)||(m===5&&n<=5)||(m===8&&n>=8&&n<=16)||(m===12&&n>=26)||(m===1&&n<=4);return{season:v?'busy':'normal',dayType:v?'vacation':'auto'}}
 async function getJSON(u){for(const f of [u,'https://api.allorigins.win/raw?url='+encodeURIComponent(u)]){try{const r=await fetch(f,{cache:'no-store'});if(r.ok)return await r.json()}catch(e){}}throw new Error('fetch')}
 async function weatherOf(ds){try{const j=await getJSON('https://api.open-meteo.com/v1/forecast?latitude=35.633&longitude=139.880&daily=precipitation_sum&timezone=Asia%2FTokyo&past_days=3&forecast_days=16');const i=j.daily.time.indexOf(ds);if(i<0)return null;const p=j.daily.precipitation_sum[i];return p>=15?'heavy':p>=3?'rain':'sun'}catch(e){return null}}
-let collecting=false;
-async function collect(){
- if(collecting)return;collecting=true;const st=$('autoStatus');
- try{
-  const now=new Date(),ds=ymd(now),w=(await weatherOf(ds))||'sun',ic=inferCtx(now),hist=loadHistory();
-  const o=540,c=1260,slot=Math.round((now.getHours()*60+now.getMinutes())/30)*30;let n=0,ok=false;
-  for(const p of ['land','sea']){
-   const j=await getJSON(`https://queue-times.com/parks/${PARKS[p]}/queue_times.json`);ok=true;
-   const live=[...(j.lands||[]).flatMap(l=>l.rides||[]),...(j.rides||[])].filter(x=>x.is_open&&Number.isFinite(Number(x.wait_time)));
-   if(live.length<3||slot<o||slot>c)continue; // 閉園・停止時は記録しない
-   ALIAS[p].forEach((a,idx)=>{
-    const re=new RegExp(a,'i'),x=live.find(y=>re.test(y.name));if(!x)return;
-    const r=rides[p][idx],sf={quiet:.78,normal:1,busy:1.24}[ic.season],df=ic.dayType==='vacation'?1.22:1;
-    const raw=r[1]*baseCurve(slot,idx,o,c)*dayFactor(now)*sf*df*({sun:1,rain:.94,heavy:.86}[w])*r[2];
-    const wait=Number(x.wait_time),ratio=Math.max(.45,Math.min(1.9,wait/Math.max(5,raw))),key=p+'|'+idx;
-    const rec={key,date:ds,minute:slot,actual:wait,ratio,weather:w,season:ic.season,dayType:ic.dayType,openMinute:o,closeMinute:c,modelVersion:3,src:'auto',at:Date.now()};
-    const i=hist.findIndex(y=>y.key===key&&y.date===ds&&Number(y.minute)===slot);
-    if(i>=0)hist[i]=rec;else hist.push(rec);n++;
-   });
-  }
-  if(n)saveHistory(hist);updateHistory();
-  st.textContent=ok?`自動学習：共有データ${SHARED.length}件＋今回${n}件を更新（${now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}）${n?'':'／開園時間外または対象なし'}`:'';
- }catch(e){st.textContent='自動学習：データを取得できませんでした（通信またはCORS制限）。タップで再試行'}
- collecting=false;
-}
-$('autoStatus').addEventListener('click',collect);
 const autoWeather=()=>weatherOf($('date').value).then(w=>{if(w)$('weather').value=w});
-$('date').addEventListener('change',autoWeather);
-autoWeather();collect();setInterval(collect,300000);
+$('date').addEventListener('change',autoWeather);autoWeather();
 
-// ===== 共有データ：サーバー側(GitHub Actions)が毎日蓄積したデータを読み込む =====
-const DATA_URL='data/history.json'; // 別の場所に置く場合はURLを変更
-async function loadShared(){
+// ===== 共有データ（全アトラクション）=====
+async function loadShared(after){
  try{
-  const r=await fetch(DATA_URL,{cache:'no-cache'});if(!r.ok)return;const j=await r.json();
-  const local=new Set(loadLocal().map(x=>x.key+'|'+x.date+'|'+x.minute)),W=['sun','rain','heavy'],cache={},out=[];
-  for(const [p,idx,date,slot,wait,wc] of j.rows){
-   const pk=p?'sea':'land',key=pk+'|'+idx,rd=rides[pk][idx];if(!rd||local.has(key+'|'+date+'|'+slot))continue;
-   const d=new Date(date+'T12:00:00'),ic=cache[date]||(cache[date]=inferCtx(d));
-   const sf={quiet:.78,normal:1,busy:1.24}[ic.season],df=ic.dayType==='vacation'?1.22:1;
-   const raw=rd[1]*baseCurve(slot,idx,540,1260)*dayFactor(d)*sf*df*[1,.94,.86][wc]*rd[2];
-   out.push({key,date,minute:slot,actual:wait,ratio:Math.max(.45,Math.min(1.9,wait/Math.max(5,raw))),weather:W[wc],season:ic.season,dayType:ic.dayType,openMinute:540,closeMinute:1260,modelVersion:3,src:'shared',at:d.getTime()});
-  }
-  SHARED=out;updateHistory();
+  const J=async u=>{const r=await fetch(u,{cache:'no-cache'});if(!r.ok)throw 0;return r.json()};
+  const [rl,hj]=await Promise.all([J('data/rides.json').catch(()=>null),J('data/history.json')]);
+  const by={},E={};
+  for(const [p,id,d,s,w] of hj.rows){if(id<100)continue;(by[p+'|'+id]||(by[p+'|'+id]=[])).push(w)}
+  if(rl)for(const pk of ['land','sea']){const list=rl[pk]||[];if(!list.length)continue;const old=rides[pk].slice(0,10);rides[pk].length=0;
+   list.forEach(([id,name,bi])=>{const a=by[(pk==='sea'?1:0)+'|'+id]||[],o=bi!=null?old[bi]:null;let idx=bi!=null?bi:5+id%5,base=o?o[1]:40,f=o?o[2]:1;
+    if(a.length>=8){const avg=a.reduce((x,y)=>x+y,0)/a.length;if(bi==null)idx=(avg>=40?0:5)+id%5;let cm=0,n=0;for(let m=540;m<=1260;m+=30){cm+=baseCurve(m,idx,540,1260);n++}base=Math.max(5,avg/(cm/n)/1.1);f=1}
+    rides[pk].push([o?o[0]:name,base,f,id,idx])})}
+  for(const pk of ['land','sea'])rides[pk].forEach(r=>E[(pk==='sea'?1:0)+'|'+r[3]]=r);
+  const local=new Set(loadLocal().map(x=>x.key+'|'+x.date+'|'+x.minute)),cache={},out=[];
+  for(const [p,id,date,slot,wait,wc] of hj.rows){const e=E[p+'|'+id];if(!e)continue;const pk=p?'sea':'land',key=pk+'|'+id;if(local.has(key+'|'+date+'|'+slot))continue;
+   const d=new Date(date+'T12:00:00'),ic=cache[date]||(cache[date]=inferCtx(d)),sf={quiet:.78,normal:1,busy:1.24}[ic.season],df=ic.dayType==='vacation'?1.22:1,raw=e[1]*baseCurve(slot,e[4],540,1260)*dayFactor(d)*sf*df*[1,.94,.86][wc]*e[2];
+   out.push({key,date,minute:slot,actual:wait,ratio:Math.max(.45,Math.min(1.9,wait/Math.max(5,raw))),weather:['sun','rain','heavy'][wc],season:ic.season,dayType:ic.dayType,openMinute:540,closeMinute:1260,modelVersion:3,src:'shared',at:d.getTime()})}
+  SHARED=out;after(out.length)
  }catch(e){}
 }
-loadShared();
+loadShared(n=>{fill();updateHistory();$('autoStatus').textContent=`共有データ${n}件・アトラクション${rides.land.length+rides.sea.length}件を使用`});
 fill();updateHistory();
 })();
 </script></body></html>
