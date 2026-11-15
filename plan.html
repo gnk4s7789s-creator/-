@@ -101,7 +101,7 @@ function learnedRatio(key,minute,date,ctx){
  return {value:Math.max(.62,Math.min(1.55,value)),confidence,support};
 }
 
-const def=()=>({park:'land',open:'09:00',close:'21:00',season:'normal',dayType:'auto',weather:'sun',date:ymd(new Date()),pri:{'land|0':2,'land|1':2,'land|2':2,'land|4':2,'sea|0':2,'sea|1':2,'sea|3':2,'sea|4':2},dpa:{},
+const def=()=>({park:'land',open:'09:00',close:'21:00',season:'normal',dayType:'auto',weather:'sun',date:ymd(new Date()),pri:{'land|0':2,'land|1':2,'land|2':2,'land|4':2,'sea|0':2,'sea|1':2,'sea|3':2,'sea|4':2},cnt:{},dpa:{},
 ev:[{t:'パレード',n:'昼のパレード',s:'14:00',d:40,pri:2},{t:'ショー',n:'夜のショー',s:'19:30',d:40,pri:0}],
 meals:[{n:'昼食',a:'11:00',b:'13:30',d:60,on:true},{n:'夕食',a:'17:00',b:'19:00',d:60,on:true},{n:'おやつ休憩',a:'14:30',b:'16:30',d:20,on:false}],shop:{a:'18:00',b:'20:00',d:45,on:true}});
 let S=def();
@@ -145,15 +145,15 @@ function table(){const P=S.park,o=tm(S.open),c=tm(S.close),k=[P,S.date,S.weather
  rides[P].forEach((r,i)=>{if(!(S.pri[K(P,i)]>0))return;T[i]=[];for(let m=o;m<=c;m+=15)T[i].push(round5(r[1]*baseCurve(m,mi(P,i),o,c)*f*r[2]*learnedRatio(K(P,i),m,date,ctx).value))});
  HC=null;TBL=T;TK=k;return T}
 const wt=(T,i,t,o)=>{const a=T[i];return a[Math.max(0,Math.min(a.length-1,Math.round((t-o)/15)))]};
-function build(T,F,rem0,o,c,score){const P=S.park,rem=rem0.slice(),out=[];let cur=o,tw=0,warn=0,n=0,sw=0;
- const fill=end=>{for(;;){let b=null;for(const i of rem){const t=cur+(out.length?WK:0),w=wt(T,i,t,o);if(t+w+RD>end)continue;const sc=score(i,w,t);if(!b||sc<b.sc)b={i,t,w,sc}}
-  if(!b)break;const p=+S.pri[K(P,b.i)];out.push({s:b.t,e:b.t+b.w+RD,ty:'a',ti:'🎢 '+rides[P][b.i][0]+' '+stars(p),sub:`待ち約${b.w}分（予測）＋乗車${RD}分`});tw+=b.w;n++;sw+=PW[p];cur=b.t+b.w+RD;rem.splice(rem.indexOf(b.i),1)}};
+function build(T,F,rem0,o,c,score){const P=S.park,rem=rem0.slice(),out=[],pl={};let cur=o,tw=0,warn=0,n=0,sw=0;F.forEach(x=>{if(x.ri!=null)pl[x.ri]=1});
+ const fill=end=>{for(;;){let b=null;const l=out[out.length-1],lr=l&&l.ty==='a'?l.ri:-1;for(const i of new Set(rem)){if(i===lr)continue;const t=cur+(out.length?WK:0),w=wt(T,i,t,o);if(t+w+RD>end)continue;const sc=score(i,w,t,pl[i]||0);if(!b||sc<b.sc)b={i,t,w,sc}}
+  if(!b)break;const p=+S.pri[K(P,b.i)],q=pl[b.i]||0;out.push({s:b.t,e:b.t+b.w+RD,ty:'a',ri:b.i,ti:'🎢 '+rides[P][b.i][0]+' '+stars(p)+(q?`（${q+1}回目）`:''),sub:`待ち約${b.w}分（予測）＋乗車${RD}分`});tw+=b.w;n++;sw+=PW[p]*(q?.5:1);pl[b.i]=q+1;cur=b.t+b.w+RD;rem.splice(rem.indexOf(b.i),1)}};
  for(const b of [...F,{s:c,end:1}]){fill(b.s);if(cur<b.s-5)out.push({s:cur,e:b.s,ty:'f',ti:'フリー・移動・休憩',sub:''});if(b.end)break;if(b.s<cur-5)warn++;out.push(b);cur=Math.max(cur,b.e)}
  return{out,rem,tw,warn,n,sw}}
 function plan(){const o=tm(S.open),c=tm(S.close),P=S.park;
  if(!(c>o)||isNaN(Date.parse(S.date))){$('out').innerHTML='<div class="s warn">来園日と開園・閉園時刻を確認してください</div>';$('sum').textContent='';return}
  const base=[],shows=[],rem=[];
- rides[P].forEach((r,i)=>{const k=K(P,i),p=+S.pri[k]||0;if(!p)return;const d=tm(S.dpa[k]);if(Number.isFinite(d))base.push({s:d,e:d+RD+10,ty:'d',ti:'🎫 '+r[0]+'（DPA） '+stars(p),sub:'指定時刻に入場',w:PW[p]});else rem.push(i)});
+ rides[P].forEach((r,i)=>{const k=K(P,i),p=+S.pri[k]||0;if(!p)return;const d=tm(S.dpa[k]);let nn=Math.max(1,Math.min(4,+S.cnt[k]||1));if(Number.isFinite(d)){nn--;base.push({s:d,e:d+RD+10,ty:'d',ti:'🎫 '+r[0]+'（DPA） '+stars(p),sub:'指定時刻に入場',w:PW[p],ri:i})}for(let j=0;j<nn;j++)rem.push(i)});
  S.ev.forEach(x=>{const s=tm(x.s),p=+x.pri||0;if(p&&Number.isFinite(s))shows.push({s,e:s+x.d,ty:x.t==='パレード'?'p':'s',ti:(x.t==='パレード'?'🎉 ':'✨ ')+x.n+' '+stars(p),sub:'待機込み '+x.d+'分',w:PW[p],p})});
  shows.sort((a,b)=>b.p-a.p);
  const fl=[...S.meals.map(x=>Object.assign({ty:'m',ti:'🍽 '+x.n,w:6000},x)),Object.assign({ty:'sh',ti:'🛍 買い物',w:2000},S.shop)].filter(x=>x.on&&x.d>0).map(x=>Object.assign({},x,{a:tm(x.a),b:tm(x.b)})).filter(x=>x.a<=x.b);
@@ -168,13 +168,13 @@ function plan(){const o=tm(S.open),c=tm(S.close),P=S.park;
    if(!cand.length){miss.push(m);continue}const t=k?cand[Math.floor(rnd()*cand.length)]:cand[Math.floor(cand.length/2)];
    F.push({s:t,e:t+m.d,ty:m.ty,ti:m.ti,sub:`${m.d}分（${fm(m.a)}〜${fm(m.b)}の間で調整）`,w:m.w})}
   F.sort((a,b)=>a.s-b.s);
-  const r=build(T,F,rem,o,c,(i,w)=>w/av[i]/sq(+S.pri[K(P,i)])*(k?1+.6*rnd():1)),v=r.sw+F.reduce((a,y)=>a+(y.w||0),0)-r.tw;
+  const r=build(T,F,rem,o,c,(i,w,t,n)=>w/av[i]/sq(+S.pri[K(P,i)])*(n?2.5:1)*(k?1+.6*rnd():1)),v=r.sw+F.reduce((a,y)=>a+(y.w||0),0)-r.tw;
   if(!k)F0=F;if(!best||v>best.v)best=Object.assign(r,{v,cs,miss,F})}
  const nv=build(T,F0,rem,o,c,i=>i),sh=best.cs.length;PLAN=best.out;
  $('sum').innerHTML=`アトラクション<b>${best.n}</b>個＋DPA${base.length}個／ショー・パレード<b>${sh}</b>本／待ち時間の合計<b>${best.tw}分</b>（予測）<br>選んだ順にそのまま並べた場合：${nv.n}個／${nv.tw}分`;
  const skip=shows.filter(x=>!best.cs.includes(x)).map(x=>x.ti);
  $('out').innerHTML=best.out.map(x=>`<div class="it ${x.ty}"><div class="tm">${fm(x.s)}<br>〜${fm(x.e)}</div><div><b>${esc(x.ti)}</b>${x.sub?`<div class="sub">${x.sub}</div>`:''}</div></div>`).join('')
- +(best.rem.length?`<div class="s warn">入りきらなかったアトラクション：${best.rem.map(i=>rides[P][i][0]+' '+stars(+S.pri[K(P,i)])).join('、')}</div>`:'')
+ +(best.rem.length?`<div class="s warn">入りきらなかったアトラクション：${[...new Set(best.rem)].map(i=>{const q=best.rem.filter(x=>x===i).length;return rides[P][i][0]+' '+stars(+S.pri[K(P,i)])+(q>1?'×'+q:'')}).join('、')}</div>`:'')
  +(skip.length?`<div class="s warn">見られなかったショー・パレード：${skip.map(esc).join('、')}</div>`:'')
  +(best.miss.length?`<div class="s warn">時間帯に入れられなかった：${best.miss.map(m=>esc(m.ti)).join('、')}（時間帯を広げてください）</div>`:'')}
 function form(){const P=S.park,ck=v=>v?'checked':'',op=(l,cur)=>l.map(([v,t])=>`<option value="${v}" ${cur===v?'selected':''}>${t}</option>`).join(''),pr=cur=>[[0,'—'],[1,'★'],[2,'★★'],[3,'★★★']].map(([v,t])=>`<option value="${v}" ${(+cur||0)===v?'selected':''}>${t}</option>`).join('');
@@ -184,8 +184,8 @@ $('form').innerHTML=`<div class="c"><div class="seg"><button data-a="park:land" 
 <div class="r"><label>時期</label><select data-p="season">${op([['quiet','閑散期'],['normal','通常'],['busy','繁忙期'],['verybusy','超繁忙期']],S.season)}</select></div>
 <div class="r"><label>祝日・イベント</label><select data-p="dayType">${op([['auto','通常日'],['holiday','祝日・3連休'],['vacation','学校休暇・大型連休'],['event','特別イベント日']],S.dayType)}</select></div>
 <div class="r"><label>開園</label><input type="time" data-p="open" value="${S.open}"><label>閉園</label><input type="time" data-p="close" value="${S.close}"></div></div>
-<div class="c"><h2>乗りたいアトラクション</h2><div class="s">優先度：★★★＝絶対／★★＝行きたい／★＝できれば／—＝行かない。右はDPAを取った場合の入場時刻（空欄＝スタンバイ）</div>
-${rides[P].map((r,i)=>{const k=K(P,i);return `<div class="r"><label>${esc(r[0])}</label><select data-p="pri.${k}" data-n="1">${pr(S.pri[k])}</select><input type="time" data-p="dpa.${k}" value="${S.dpa[k]||''}"></div>`}).join('')}</div>
+<div class="c"><h2>乗りたいアトラクション</h2><div class="s">優先度：★★★＝絶対／★★＝行きたい／★＝できれば／—＝行かない。回数は最大で乗りたい回数（2回目以降は優先度を半分として扱います）。右はDPAの入場時刻（空欄＝スタンバイ）</div>
+${rides[P].map((r,i)=>{const k=K(P,i);return `<div class="r"><label>${esc(r[0])}</label><select data-p="pri.${k}" data-n="1">${pr(S.pri[k])}</select><select data-p="cnt.${k}" data-n="1">${[1,2,3,4].map(v=>`<option value="${v}" ${(+S.cnt[k]||1)===v?'selected':''}>${v}回</option>`).join('')}</select><input type="time" data-p="dpa.${k}" value="${S.dpa[k]||''}"></div>`}).join('')}</div>
 <div class="c"><h2>ショー・パレード</h2><div class="s">優先度を付けたものの中から、見られる組み合わせを自動で選びます</div>${S.ev.map((x,i)=>`<div class="r"><select data-p="ev.${i}.pri" data-n="1">${pr(x.pri)}</select><select data-p="ev.${i}.t"><option ${x.t==='パレード'?'selected':''}>パレード</option><option ${x.t==='ショー'?'selected':''}>ショー</option></select><input type="text" data-p="ev.${i}.n" value="${esc(x.n)}"><input type="time" data-p="ev.${i}.s" value="${x.s}"><input type="number" data-p="ev.${i}.d" value="${x.d}" min="5" max="180">分<button class="bt" data-a="del:${i}">✕</button></div>`).join('')}<button class="bt" data-a="add">＋追加</button>${sBtn()}</div>
 <div class="c"><h2>食事・買い物</h2><div class="s">開始してよい時間帯を入力すると、その範囲で最適な時刻を自動で決めます</div>${S.meals.map((x,i)=>`<div class="r"><input type="checkbox" data-p="meals.${i}.on" ${ck(x.on)}><label>${esc(x.n)}</label><input type="time" data-p="meals.${i}.a" value="${x.a}">〜<input type="time" data-p="meals.${i}.b" value="${x.b}"><input type="number" data-p="meals.${i}.d" value="${x.d}" min="5" max="180">分</div>`).join('')}
 <div class="r"><input type="checkbox" data-p="shop.on" ${ck(S.shop.on)}><label>買い物</label><input type="time" data-p="shop.a" value="${S.shop.a}">〜<input type="time" data-p="shop.b" value="${S.shop.b}"><input type="number" data-p="shop.d" value="${S.shop.d}" min="5" max="180">分</div></div>`}
