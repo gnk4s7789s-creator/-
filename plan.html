@@ -127,13 +127,14 @@ async function loadShared(after){
   const [rl,hj]=await Promise.all([J('data/rides.json').catch(()=>null),J('data/history.json')]);
   const by={},E={};
   for(const [p,id,d,s,w] of hj.rows){if(id<100)continue;(by[p+'|'+id]||(by[p+'|'+id]=[])).push(w)}
+  const strict=new Set();for(const k in by){const nz=by[k].filter(x=>x>0);if(nz.length&&nz.reduce((q,x)=>q+x,0)/nz.length>=20){by[k]=nz;strict.add(k)}}
   if(rl)for(const pk of ['land','sea']){const list=rl[pk]||[];if(!list.length)continue;const old=rides[pk].slice(0,10);rides[pk].length=0;
    list.forEach(([id,name,bi])=>{const a=by[(pk==='sea'?1:0)+'|'+id]||[],o=bi!=null?old[bi]:null;let idx=bi!=null?bi:5+id%5,base=o?o[1]:40,f=o?o[2]:1;
     if(a.length>=8){const avg=a.reduce((x,y)=>x+y,0)/a.length;if(bi==null)idx=(avg>=40?0:5)+id%5;let cm=0,n=0;for(let m=540;m<=1260;m+=30){cm+=baseCurve(m,idx,540,1260);n++}base=Math.max(5,avg/(cm/n)/1.1);f=1}
     rides[pk].push([o?o[0]:jn(name),base,f,id,idx])})}
   for(const pk of ['land','sea'])rides[pk].forEach(r=>E[(pk==='sea'?1:0)+'|'+r[3]]=r);
   const local=new Set(loadLocal().map(x=>x.key+'|'+x.date+'|'+x.minute)),cache={},out=[];
-  for(const [p,id,date,slot,wait,wc] of hj.rows){const e=E[p+'|'+id];if(!e)continue;const pk=p?'sea':'land',key=pk+'|'+id;if(local.has(key+'|'+date+'|'+slot))continue;
+  for(const [p,id,date,slot,wait,wc] of hj.rows){const e=E[p+'|'+id];if(!e||(!wait&&strict.has(p+'|'+id)))continue;const pk=p?'sea':'land',key=pk+'|'+id;if(local.has(key+'|'+date+'|'+slot))continue;
    const d=new Date(date+'T12:00:00'),ic=cache[date]||(cache[date]=inferCtx(d)),sf={quiet:.78,normal:1,busy:1.24,verybusy:1.48}[ic.season],df={auto:1,holiday:1.12,vacation:1.22,event:1.16}[ic.dayType],raw=e[1]*baseCurve(slot,e[4],540,1260)*dayFactor(d)*sf*df*[1,.94,.86][wc]*e[2];
    out.push({key,date,minute:slot,actual:wait,ratio:Math.max(.45,Math.min(1.9,wait/Math.max(5,raw))),weather:['sun','rain','heavy'][wc],season:ic.season,dayType:ic.dayType,openMinute:540,closeMinute:1260,modelVersion:3,src:'shared',at:d.getTime()})}
   SHARED=out;after(out.length,!!rl)
