@@ -120,17 +120,28 @@ const JA=[['Frozen Journey','アナとエルサのフローズンジャーニー
 ['Jamboree','ジャンボリミッキー！レッツ・ダンス！'],['Club Mouse Beat','クラブマウスビート'],['Electrical Parade','エレクトリカルパレード・ドリームライツ'],['Harmony in Color','ディズニー・ハーモニー・イン・カラー'],['Reach for the Stars','リーチ・フォー・ザ・スターズ'],['Magical Music World','ミッキーのマジカルミュージックワールド'],['Rainbow Luau','ミッキーのレインボー・ルアウ'],['Fantasmic','ファンタズミック！'],['Sea of Dreams','ビリーヴ！〜シー・オブ・ドリームス〜'],['Big Band Beat','ビッグバンドビート']];
 const AREA={'American Waterfront':'アメリカンウォーターフロント','Port Discovery':'ポートディスカバリー','Lost River Delta':'ロストリバーデルタ','Mediterranean Harbor':'メディテレーニアンハーバー','Mysterious Island':'ミステリアスアイランド','Arabian Coast':'アラビアンコースト','Mermaid Lagoon':'マーメイドラグーン'};
 const jn=n=>{const e=JA.find(x=>new RegExp(x[0],'i').test(n));if(!e)return n;const g=/\(([^)]+)\)\s*$/.exec(n);return e[1]+(g?'（'+(AREA[g[1]]||g[1])+'）':'')};
+const WS={sun:0,rain:1,heavy:2},DT={auto:0,holiday:1,event:1.5,vacation:2},SE={quiet:0,normal:1,busy:2,verybusy:3},DC=new WeakMap();
+const offDay=d=>{const g=d.getDay();return g===0||g===6||!!HOL[ymd(d)]};
+function knn(key,min,date,ctx){const H=loadHistory(),dow=date.getDay(),off=offDay(date),now=Date.now();let sw=0,sx=0,n=0;
+ for(const x of H){if(x.key!==key||!(x.actual>=0)||!x.date)continue;const dm=Math.abs(+x.minute-min);if(dm>60)continue;
+  let c=DC.get(x);if(!c){const d=new Date(x.date+'T12:00:00');c={t:d.getTime(),dow:d.getDay(),off:offDay(d)};DC.set(x,c)}
+  let w=Math.exp(-((dm/30)**2)/2)*Math.pow(.5,Math.max(0,now-c.t)/864e5/60)*Math.exp(-Math.abs((SE[x.season]??1)-(SE[ctx.season]??1))/1.2)*Math.exp(-Math.abs((DT[x.dayType]??0)-(DT[ctx.dayType]??0))/1.2);
+  const wd=Math.abs((WS[x.weather]??0)-(WS[ctx.weather]??0));w*=wd===0?1:wd===1?.65:.35;
+  w*=c.dow===dow?1:c.off===off?.7:.3;if(x.date===ctx.dateValue)w*=3;
+  sw+=w;sx+=w*x.actual;n++}
+ return{avg:sw>0?sx/sw:0,sw,n}}
+const blendK=(k,raw)=>{if(!k.sw)return raw;const w=k.sw/(k.sw+2.5);return w*k.avg+(1-w)*raw};
 async function loadShared(after){
  try{
   await HOLP;
   const J=async u=>{const r=await fetch(u,{cache:'no-cache'});if(!r.ok)throw 0;return r.json()};
   const [rl,hj]=await Promise.all([J('data/rides.json').catch(()=>null),J('data/history.json')]);
   const by={},E={};
-  for(const [p,id,d,s,w] of hj.rows){if(id<100)continue;(by[p+'|'+id]||(by[p+'|'+id]=[])).push(w)}
-  const strict=new Set();for(const k in by){const nz=by[k].filter(x=>x>0);if(nz.length&&nz.reduce((q,x)=>q+x,0)/nz.length>=20){by[k]=nz;strict.add(k)}}
+  for(const [p,id,d,s,w] of hj.rows){if(id<100)continue;(by[p+'|'+id]||(by[p+'|'+id]=[])).push([s,w])}
+  const strict=new Set();for(const k in by){const nz=by[k].filter(x=>x[1]>0);if(nz.length&&nz.reduce((q,x)=>q+x[1],0)/nz.length>=20){by[k]=nz;strict.add(k)}}
   if(rl)for(const pk of ['land','sea']){const list=rl[pk]||[];if(!list.length)continue;const old=rides[pk].slice(0,10);rides[pk].length=0;
    list.forEach(([id,name,bi])=>{const a=by[(pk==='sea'?1:0)+'|'+id]||[],o=bi!=null?old[bi]:null;let idx=bi!=null?bi:5+id%5,base=o?o[1]:40,f=o?o[2]:1;
-    if(a.length>=8){const avg=a.reduce((x,y)=>x+y,0)/a.length;if(bi==null)idx=(avg>=40?0:5)+id%5;let cm=0,n=0;for(let m=540;m<=1260;m+=30){cm+=baseCurve(m,idx,540,1260);n++}base=Math.max(5,avg/(cm/n)/1.1);f=1}
+    if(a.length>=8){const med=ix=>{const v=a.map(x=>x[1]/Math.max(.25,baseCurve(x[0],ix,540,1260))/1.1).sort((u,w)=>u-w);return v[v.length>>1]};if(bi==null){idx=5+id%5;if(med(idx)>=45)idx=id%5}const wd=Math.min(1,a.length/60);base=Math.max(5,wd*med(idx)+(1-wd)*base);f=1}
     rides[pk].push([o?o[0]:jn(name),base,f,id,idx])})}
   for(const pk of ['land','sea'])rides[pk].forEach(r=>E[(pk==='sea'?1:0)+'|'+r[3]]=r);
   const local=new Set(loadLocal().map(x=>x.key+'|'+x.date+'|'+x.minute)),cache={},out=[];
@@ -151,7 +162,7 @@ function table(){const P=S.park,o=tm(S.open),c=tm(S.close),k=[P,S.date,S.weather
  const date=new Date(S.date+'T12:00:00'),ctx={season:S.season,weather:S.weather,dayType:S.dayType,openMinute:o,closeMinute:c,dateValue:S.date},
  f=({quiet:.78,normal:1,busy:1.24,verybusy:1.48}[S.season])*({auto:1,holiday:1.12,vacation:1.22,event:1.16}[S.dayType])*({sun:1,rain:.94,heavy:.86}[S.weather])*dayFactor(date);
  HC=loadLocal().concat(SHARED);const T={};
- rides[P].forEach((r,i)=>{if(!(S.pri[K(P,i)]>0))return;T[i]=[];for(let m=o;m<=c;m+=15)T[i].push(round5(r[1]*baseCurve(m,mi(P,i),o,c)*f*r[2]*learnedRatio(K(P,i),m,date,ctx).value))});
+ rides[P].forEach((r,i)=>{if(!(S.pri[K(P,i)]>0))return;T[i]=[];for(let m=o;m<=c;m+=15)T[i].push(round5(blendK(knn(K(P,i),m,date,ctx),r[1]*baseCurve(m,mi(P,i),o,c)*f*r[2])))});
  HC=null;TBL=T;TK=k;return T}
 const wt=(T,i,t,o)=>{const a=T[i];return a[Math.max(0,Math.min(a.length-1,Math.round((t-o)/15)))]};
 function build(T,F,rem0,o,c,score){const P=S.park,rem=rem0.slice(),out=[],pl={};let cur=o,tw=0,warn=0,n=0,sw=0;F.forEach(x=>{if(x.ri!=null)pl[x.ri]=1});
